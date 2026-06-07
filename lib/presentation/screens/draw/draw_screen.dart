@@ -70,21 +70,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
   }
 
   void _drawNext() {
-    final currentAutoDrawing = ref.read(drawProvider).isAutoDrawing;
     ref.read(drawProvider.notifier).drawNext();
-    final isNowAutoDrawing = ref.read(drawProvider).isAutoDrawing;
-    
-    // Only show reveal animation for non-auto draws
-    if (!isNowAutoDrawing) {
-      _revealController.forward(from: 0);
-    } else {
-      // If this is an auto-draw, automatically trigger the next draw after a short delay
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted && ref.read(drawProvider).drawState != DrawState.complete) {
-          _drawNext();
-        }
-      });
-    }
+    _revealController.forward(from: 0);
   }
 
   void _showResetDialog() {
