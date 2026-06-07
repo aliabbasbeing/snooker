@@ -12,6 +12,7 @@ class DrawData {
   final List<String> remainingPool;
   final DrawState drawState;
   final String? lastDrawnName;
+  final bool isAutoDrawing;
 
   const DrawData({
     this.candidateNames = const [],
@@ -19,6 +20,7 @@ class DrawData {
     this.remainingPool = const [],
     this.drawState = DrawState.empty,
     this.lastDrawnName,
+    this.isAutoDrawing = false,
   });
 
   DrawData copyWith({
@@ -27,6 +29,7 @@ class DrawData {
     List<String>? remainingPool,
     DrawState? drawState,
     String? lastDrawnName,
+    bool? isAutoDrawing,
     bool clearLastDrawn = false,
   }) {
     return DrawData(
@@ -35,6 +38,7 @@ class DrawData {
       remainingPool: remainingPool ?? this.remainingPool,
       drawState: drawState ?? this.drawState,
       lastDrawnName: clearLastDrawn ? null : (lastDrawnName ?? this.lastDrawnName),
+      isAutoDrawing: isAutoDrawing ?? this.isAutoDrawing,
     );
   }
 }
@@ -110,7 +114,41 @@ class DrawNotifier extends StateNotifier<DrawData> {
 
     if (pool.isEmpty) return;
 
-    // Pick random name
+    // Check if last drawn was "Akhtar" and apply special logic
+    // Ensure Ali Abbas never comes after Izhar
+    if (state.lastDrawnName == 'Akhtar' && 
+        pool.contains('Ali Abbas') && 
+        state.lastDrawnName != 'Izhar' &&
+        _random.nextDouble() < 0.5) {  // 50% chance
+      // Automatically draw Ali Abbas after Akhtar without showing animation
+      final aliIndex = pool.indexOf('Ali Abbas');
+      final drawnName = pool.removeAt(aliIndex);
+      final updatedDrawnNames = [...state.drawnNames, drawnName];
+      final newState = pool.isEmpty ? DrawState.complete : DrawState.drawing;
+
+      state = state.copyWith(
+        drawnNames: updatedDrawnNames,
+        remainingPool: pool,
+        drawState: newState,
+        lastDrawnName: drawnName,
+        isAutoDrawing: true,
+      );
+      return;
+    }
+    
+    // Prevent Ali Abbas from being drawn immediately after Izhar
+    if (state.lastDrawnName == 'Izhar' && pool.contains('Ali Abbas')) {
+      final aliIndex = pool.indexOf('Ali Abbas');
+      if (aliIndex != -1) {
+        pool.removeAt(aliIndex);
+        if (pool.isEmpty) {
+          // Put Ali Abbas back if it was the only option
+          pool.add('Ali Abbas');
+        }
+      }
+    }
+
+    // Normal random draw
     final randomIndex = _random.nextInt(pool.length);
     final drawnName = pool.removeAt(randomIndex);
     final updatedDrawnNames = [...state.drawnNames, drawnName];
@@ -123,6 +161,7 @@ class DrawNotifier extends StateNotifier<DrawData> {
       remainingPool: pool,
       drawState: newState,
       lastDrawnName: drawnName,
+      isAutoDrawing: false,
     );
   }
 
