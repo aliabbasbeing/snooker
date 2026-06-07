@@ -53,7 +53,7 @@ class AppColors {
   static const Color ballGreen = Color(0xFF22C55E);
   static const Color ballBrown = Color(0xFF92400E);
   static const Color ballBlue = Color(0xFF3B82F6);
-  static const Color ballPink = Color(0xFFFF8C00);
+  static const Color ballPink = Color(0xFFFF69B4);
   static const Color ballBlack = Color(0xFF1F2937);
   static const Color ballRed = Color(0xFFEF4444);
 
