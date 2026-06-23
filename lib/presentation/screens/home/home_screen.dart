@@ -1400,7 +1400,7 @@ class _FoulBallsWidget extends StatelessWidget {
     (points: 5, color: AppColors.ballFoul5, label: 'Blue'),
     (points: 6, color: AppColors.ballFoul6, label: 'Pink'),
     (points: 7, color: AppColors.ballFoul7, label: 'Black'),
-    (points: 8, color: AppColors.ballFoul8, label: 'Red'),
+    (points: 10, color: AppColors.ballFoul10, label: 'Red'),
   ];
 
   @override

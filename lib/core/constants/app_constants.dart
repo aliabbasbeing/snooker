@@ -32,7 +32,7 @@ class AppConstants {
   static const int foul5Points = 5;
   static const int foul6Points = 6;
   static const int foul7Points = 7;
-  static const int foul8Points = 8;
+  static const int foul10Points = 10;
   
   // Storage Keys
   static const String storageBoxName = 'snooker_data';
