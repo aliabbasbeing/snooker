@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
-import 'player.dart';
+import '../models/player.dart';
+import '../../core/constants/app_constants.dart';
 
 part 'game.g.dart';
 
@@ -33,7 +34,7 @@ class Game extends HiveObject {
     required this.id,
     required this.players,
     this.currentPlayerId,
-    this.targetScore = 150,
+    this.targetScore = AppConstants.defaultTargetScore,
     this.isSubtractMode = false,
     DateTime? createdAt,
     this.completedAt,

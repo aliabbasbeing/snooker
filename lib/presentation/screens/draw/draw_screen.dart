@@ -5,6 +5,7 @@ import '../../../core/utils/name_formatter.dart';
 import '../../providers/draw_provider.dart';
 import '../../providers/saved_players_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../widgets/section_header.dart';
 
 /// Provider to track tab switching for navigation after "Add to Game"
 final navigateToHomeProvider = StateProvider<bool>((ref) => false);
@@ -49,10 +50,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
       TweenSequenceItem(tween: Tween(begin: 0.5, end: 1.12), weight: 60),
       TweenSequenceItem(tween: Tween(begin: 1.12, end: 0.95), weight: 20),
       TweenSequenceItem(tween: Tween(begin: 0.95, end: 1.0), weight: 20),
-    ]).animate(CurvedAnimation(
-      parent: _revealController,
-      curve: Curves.easeOutBack,
-    ));
+    ]).animate(_revealController);
   }
 
   @override
@@ -201,7 +199,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
               // Candidate chips section - only show if candidates exist and not complete
               if (drawData.candidateNames.isNotEmpty &&
                   !isComplete) ...[
-                const _SectionHeader(label: 'Names to Draw'),
+                const SectionHeader(label: 'Names to Draw'),
                 const SizedBox(height: 8),
                 _CandidateChips(
                   names: drawData.candidateNames,
@@ -221,7 +219,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
               // Reveal card
               if (drawData.candidateNames.isNotEmpty ||
                   drawData.drawnNames.isNotEmpty) ...[
-                const _SectionHeader(label: 'Draw Result'),
+                const SectionHeader(label: 'Draw Result'),
                 const SizedBox(height: 8),
                 _RevealCard(
                   drawData: drawData,
@@ -249,7 +247,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
 
               // Drawn order list
               if (drawData.drawnNames.isNotEmpty) ...[
-                const _SectionHeader(label: 'Draw Order'),
+                const SectionHeader(label: 'Draw Order'),
                 const SizedBox(height: 8),
                 _DrawnOrderList(
                   names: drawData.drawnNames,
@@ -259,42 +257,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen>
           ),
         ),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  const _SectionHeader({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 14,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: colors.textSecondary,
-          ),
-        ),
-      ],
     );
   }
 }

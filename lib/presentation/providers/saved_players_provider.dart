@@ -1,57 +1,70 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/saved_player.dart';
+import '../../data/repositories/storage_repository.dart';
+import 'settings_provider.dart';
 
 final savedPlayersProvider =
     StateNotifierProvider<SavedPlayersNotifier, List<SavedPlayer>>((ref) {
-  return SavedPlayersNotifier();
+  final repository = ref.watch(storageRepositoryProvider);
+  return SavedPlayersNotifier(repository);
 });
 
 class SavedPlayersNotifier extends StateNotifier<List<SavedPlayer>> {
+  final StorageRepository _repository;
   final _uuid = const Uuid();
 
-  SavedPlayersNotifier() : super([]) {
+  SavedPlayersNotifier(this._repository) : super([]) {
     _load();
   }
 
   void _load() {
-    final box = Hive.box<SavedPlayer>('savedPlayers');
-    final players = box.values.toList()
-      ..sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
-    state = players;
+    try {
+      state = _repository.getAllSavedPlayers();
+    } catch (e) {
+      state = [];
+    }
   }
 
   Future<void> savePlayer(String name, int colorIndex) async {
-    final box = Hive.box<SavedPlayer>('savedPlayers');
-    final existing = box.values
-        .where((p) => p.name.toLowerCase() == name.toLowerCase())
-        .firstOrNull;
-    if (existing != null) {
-      existing.usageCount++;
-      existing.lastUsed = DateTime.now();
-      existing.colorIndex = colorIndex;
-      await existing.save();
-    } else {
-      final player = SavedPlayer(
-        id: _uuid.v4(),
-        name: name,
-        colorIndex: colorIndex,
-        usageCount: 1,
-        lastUsed: DateTime.now(),
-      );
-      await box.put(player.id, player);
+    try {
+      final existing = _repository.findSavedPlayerByName(name);
+      if (existing != null) {
+        existing.usageCount++;
+        existing.lastUsed = DateTime.now();
+        existing.colorIndex = colorIndex;
+        await _repository.updateSavedPlayer(existing);
+      } else {
+        final player = SavedPlayer(
+          id: _uuid.v4(),
+          name: name,
+          colorIndex: colorIndex,
+          usageCount: 1,
+          lastUsed: DateTime.now(),
+        );
+        await _repository.saveSavedPlayer(player);
+      }
+      _load();
+    } catch (e) {
+      // Silently fail — saved players are non-critical
     }
-    _load();
   }
 
   Future<void> deletePlayer(String id) async {
-    await Hive.box<SavedPlayer>('savedPlayers').delete(id);
-    _load();
+    try {
+      await _repository.deleteSavedPlayer(id);
+      _load();
+    } catch (e) {
+      // Silently fail
+    }
   }
 
   Future<void> clearAll() async {
-    await Hive.box<SavedPlayer>('savedPlayers').clear();
-    state = [];
+    try {
+      await _repository.clearAllSavedPlayers();
+      state = [];
+    } catch (e) {
+      // Silently fail
+    }
   }
 }

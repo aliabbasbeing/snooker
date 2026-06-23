@@ -213,6 +213,41 @@ class StorageRepository {
       await _statisticsBox!.put(key, updated);
     }
   }
+
+  // ========== Saved Players ==========
+
+  List<SavedPlayer> getAllSavedPlayers() {
+    final players = _savedPlayersBox?.values.toList() ?? [];
+    players.sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
+    return players;
+  }
+
+  Future<void> saveSavedPlayer(SavedPlayer player) async {
+    await _savedPlayersBox?.put(player.id, player);
+  }
+
+  Future<void> updateSavedPlayer(SavedPlayer player) async {
+    await _savedPlayersBox?.put(player.id, player);
+  }
+
+  Future<void> deleteSavedPlayer(String id) async {
+    await _savedPlayersBox?.delete(id);
+  }
+
+  Future<void> clearAllSavedPlayers() async {
+    await _savedPlayersBox?.clear();
+  }
+
+  SavedPlayer? findSavedPlayerByName(String name) {
+    if (_savedPlayersBox == null) return null;
+    try {
+      return _savedPlayersBox!.values
+          .where((p) => p.name.toLowerCase() == name.toLowerCase())
+          .firstOrNull;
+    } catch (_) {
+      return null;
+    }
+  }
   
   // ========== Cleanup ==========
   

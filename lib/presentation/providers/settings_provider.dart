@@ -18,22 +18,34 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   
   /// Load settings from storage
   Future<void> loadSettings() async {
-    final settings = _repository.getSettings();
-    state = settings;
+    try {
+      final settings = _repository.getSettings();
+      state = settings;
+    } catch (e) {
+      // Keep default settings on error
+    }
   }
   
   /// Toggle dark mode
   Future<void> toggleDarkMode() async {
-    final newSettings = state.copyWith(isDarkMode: !state.isDarkMode);
-    await _repository.saveSettings(newSettings);
-    state = newSettings;
+    try {
+      final newSettings = state.copyWith(isDarkMode: !state.isDarkMode);
+      await _repository.saveSettings(newSettings);
+      state = newSettings;
+    } catch (e) {
+      // Silently fail
+    }
   }
   
   /// Update default target score
   Future<void> updateDefaultTargetScore(int score) async {
-    final newSettings = state.copyWith(defaultTargetScore: score);
-    await _repository.saveSettings(newSettings);
-    state = newSettings;
+    try {
+      final newSettings = state.copyWith(defaultTargetScore: score);
+      await _repository.saveSettings(newSettings);
+      state = newSettings;
+    } catch (e) {
+      // Silently fail
+    }
   }
 }
 

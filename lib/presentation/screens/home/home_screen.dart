@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
@@ -9,6 +11,7 @@ import '../../../data/models/snooker_ball.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/game_timer_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../widgets/section_header.dart';
 import '../transfer/share_qr_screen.dart';
 import '../transfer/scan_qr_screen.dart';
 
@@ -20,19 +23,59 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final _nameController = TextEditingController();
   String? _expandedColorPickerId;
+
+  // Foul overlay state
+  bool _showFoulOverlay = false;
+  late AnimationController _foulController;
+  late Animation<double> _foulFade;
+  late Animation<double> _foulBlur;
+  late Animation<double> _foulScale;
 
   @override
   void initState() {
     super.initState();
+    _foulController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _foulFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _foulController, curve: Curves.easeOut),
+    );
+    _foulBlur = Tween<double>(begin: 0.0, end: 12.0).animate(
+      CurvedAnimation(parent: _foulController, curve: Curves.easeOut),
+    );
+    _foulScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _foulController,
+        curve: const Interval(0.2, 1.0, curve: Curves.elasticOut),
+      ),
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _foulController.dispose();
     super.dispose();
+  }
+
+  void _openFoulOverlay() {
+    setState(() => _showFoulOverlay = true);
+    _foulController.forward();
+  }
+
+  Future<void> _closeFoulOverlay(int? points) async {
+    if (points != null) {
+      await ref.read(gameProvider.notifier).scoreFoul(points);
+    }
+    await _foulController.reverse();
+    if (mounted) {
+      setState(() => _showFoulOverlay = false);
+    }
   }
 
   Future<void> _addPlayer(Game? game) async {
@@ -89,21 +132,183 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final colors = AppColors.of(context);
     if (!mounted) return;
 
+    final game = ref.read(gameProvider);
+    final playerCount = game?.players.length ?? 2;
+    final totalPrice = (playerCount - 1) * AppConstants.pricePerPlayer;
+
     await showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: colors.bgCard,
-        title: Text('Game Complete', style: TextStyle(color: colors.textPrimary)),
-        content: Text(
-          'Loser: ${event.loserName}',
-          style: TextStyle(color: colors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: colors.bgCard,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                blurRadius: 30,
+                spreadRadius: 4,
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Header ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.15),
+                      colors.bgElevated,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Text('🏆', style: TextStyle(fontSize: 40)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'GAME OVER',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: colors.textPrimary,
+                        fontFamily: 'Syne',
+                        letterSpacing: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Loser ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Column(
+                  children: [
+                    Text(
+                      'LOSER',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
+                        color: colors.danger,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: colors.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: colors.danger.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        event.loserName,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: colors.danger,
+                          fontFamily: 'Syne',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Price Message ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'Ab Mame ko $totalPrice Rs Do Shabash',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              // ── Buttons ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          ref.read(gameProvider.notifier).rematch();
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Rematch'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          ref.read(gameProvider.notifier).createNewGame();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('New Game'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -169,178 +374,185 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _showGameCompleteDialog(next);
     });
 
-    return Scaffold(
-      backgroundColor: colors.bgPage,
-      appBar: AppBar(
-        backgroundColor: colors.navbar,
-        centerTitle: true,
-        title: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '🎱 Nazeer Gaming Club',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: colors.textPrimary,
-              ),
-            ),
-            Text(
-              'by Ali Abbas',
-              style: TextStyle(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (game != null)
-            IconButton(
-              icon: Icon(Icons.qr_code, color: colors.accent),
-              tooltip: 'Transfer Game',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ShareQrScreen(game: game)),
-              ),
-            ),
-          IconButton(
-            icon: Icon(Icons.qr_code_scanner,
-                color: colors.textMuted),
-            tooltip: 'Receive Game',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ScanQrScreen()),
-            ),
-          ),
-          IconButton(
-            onPressed: _showNewGameDialog,
-            icon: Icon(Icons.refresh, color: colors.danger, size: 22),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _AddPlayerRow(
-                controller: _nameController,
-                canAdd: (game?.players.length ?? 0) < AppConstants.maxPlayers,
-                onAdd: () => _addPlayer(game),
-              ),
-              if (game != null) ...[
-                const SizedBox(height: 12),
-                _GlobalTargetChip(game: game),
-              ],
-              const SizedBox(height: 20),
-              const SizedBox(height: 8),
-              if (game != null && game.players.isNotEmpty) ...[
-                _GameOverBanner(
-                  game: game,
-                  onRematch: () {
-                    ref.read(gameProvider.notifier).rematch();
-                  },
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: colors.bgPage,
+          appBar: AppBar(
+            backgroundColor: colors.navbar,
+            centerTitle: true,
+            title: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '🎱 Nazeer Gaming Club',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: colors.textPrimary,
+                  ),
                 ),
-                ReorderableListView(
-                  buildDefaultDragHandles: false,
-                  onReorder: (oldIndex, newIndex) {
-                    if (newIndex > oldIndex) newIndex--;
-                    ref.read(gameProvider.notifier).reorderPlayers(oldIndex, newIndex);
-                  },
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    for (int i = 0; i < game.players.length; i++)
-                      _PlayerListItem(
-                        key: ValueKey(game.players[i].id),
-                        player: game.players[i],
-                        isActive: game.players[i].id == game.currentPlayerId,
-                        targetScore: game.targetScore,
-                        rank: i + 1,
-                        expandedColorPickerId: _expandedColorPickerId,
-                        onTap: () {
-                          if (!game.players[i].isCompleted) {
-                            ref.read(gameProvider.notifier).setCurrentPlayer(game.players[i].id);
-                          }
-                        },
-                        onRemove: () => _showRemoveDialog(game.players[i].id, game.players[i].name),
-                        onEditTarget: game.players[i].isCompleted
-                            ? null
-                            : () => _showPersonalTargetSheet(context, ref, game.players[i], game.targetScore),
-                        onColorPickerToggle: () => setState(() {
-                          _expandedColorPickerId = _expandedColorPickerId == game.players[i].id
-                              ? null
-                              : game.players[i].id;
-                        }),
-                        onSetColor: (idx) {
-                          ref.read(gameProvider.notifier).setPlayerColor(game.players[i].id, idx);
-                          setState(() => _expandedColorPickerId = null);
-                        },
-                      ),
-                  ],
+                Text(
+                  'by Ali Abbas',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: colors.textMuted,
+                  ),
                 ),
-              ] else ...[
-                const _EmptyPlayersHint(),
               ],
-              const SizedBox(height: 20),
-              const _SectionHeader(label: 'Current Turn'),
-              const SizedBox(height: 8),
-              _CurrentPlayerCard(game: game),
-              const _GameTimerChip(),
-              if (game != null && game.completedAt == null) ...[
-                const SizedBox(height: 20),
-                const _SectionHeader(label: 'Score'),
-                const SizedBox(height: 8),
-                _BallGrid(game: game, ref: ref),
-                const SizedBox(height: 16),
-                _SubtractToggle(game: game),
-                const SizedBox(height: 12),
-                _ActionButtons(game: game),
-                const SizedBox(height: 8),
-              ],
+            ),
+            actions: [
+              if (game != null)
+                IconButton(
+                  icon: Icon(Icons.qr_code, color: colors.accent),
+                  tooltip: 'Transfer Game',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => ShareQrScreen(game: game)),
+                  ),
+                ),
+              IconButton(
+                icon: Icon(Icons.qr_code_scanner,
+                    color: colors.textMuted),
+                tooltip: 'Receive Game',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ScanQrScreen()),
+                ),
+              ),
+              IconButton(
+                onPressed: _showNewGameDialog,
+                icon: Icon(Icons.refresh, color: colors.danger, size: 22),
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  const _SectionHeader({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 14,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(2),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AddPlayerRow(
+                    controller: _nameController,
+                    canAdd: (game?.players.length ?? 0) < AppConstants.maxPlayers,
+                    onAdd: () => _addPlayer(game),
+                  ),
+                  if (game != null) ...[
+                    const SizedBox(height: 12),
+                    _GlobalTargetChip(game: game),
+                  ],
+                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  if (game != null && game.players.isNotEmpty) ...[
+                    _GameOverBanner(
+                      game: game,
+                      onRematch: () {
+                        ref.read(gameProvider.notifier).rematch();
+                      },
+                    ),
+                    ReorderableListView(
+                      buildDefaultDragHandles: false,
+                      onReorder: (oldIndex, newIndex) {
+                        if (newIndex > oldIndex) newIndex--;
+                        ref.read(gameProvider.notifier).reorderPlayers(oldIndex, newIndex);
+                      },
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        for (int i = 0; i < game.players.length; i++)
+                          _PlayerListItem(
+                            key: ValueKey(game.players[i].id),
+                            player: game.players[i],
+                            isActive: game.players[i].id == game.currentPlayerId,
+                            targetScore: game.targetScore,
+                            rank: i + 1,
+                            expandedColorPickerId: _expandedColorPickerId,
+                            onTap: () {
+                              if (!game.players[i].isCompleted) {
+                                ref.read(gameProvider.notifier).setCurrentPlayer(game.players[i].id);
+                              }
+                            },
+                            onRemove: () => _showRemoveDialog(game.players[i].id, game.players[i].name),
+                            onEditTarget: game.players[i].isCompleted
+                                ? null
+                                : () => _showPersonalTargetSheet(context, ref, game.players[i], game.targetScore),
+                            onColorPickerToggle: () => setState(() {
+                              _expandedColorPickerId = _expandedColorPickerId == game.players[i].id
+                                  ? null
+                                  : game.players[i].id;
+                            }),
+                            onSetColor: (idx) {
+                              ref.read(gameProvider.notifier).setPlayerColor(game.players[i].id, idx);
+                              setState(() => _expandedColorPickerId = null);
+                            },
+                          ),
+                      ],
+                    ),
+                  ] else ...[
+                    const _EmptyPlayersHint(),
+                  ],
+                  const SizedBox(height: 20),
+                  const SectionHeader(label: 'Current Turn'),
+                  const SizedBox(height: 8),
+                  _CurrentPlayerCard(game: game),
+                  const _GameTimerChip(),
+                  if (game != null && game.completedAt == null) ...[
+                    const SizedBox(height: 20),
+                    const SectionHeader(label: 'Score'),
+                    const SizedBox(height: 8),
+                    _BallGrid(game: game, ref: ref),
+                    const SizedBox(height: 16),
+                    _FoulTriggerButton(
+                      game: game,
+                      onTap: _openFoulOverlay,
+                    ),
+                    const SizedBox(height: 12),
+                    _ActionButtons(game: game),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: colors.textSecondary,
+        // ── Foul Overlay ──
+        if (_showFoulOverlay)
+          AnimatedBuilder(
+            animation: _foulController,
+            builder: (context, _) {
+              return Stack(
+                children: [
+                  GestureDetector(
+                    onTap: () => _closeFoulOverlay(null),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: _foulBlur.value,
+                        sigmaY: _foulBlur.value,
+                      ),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.6 * _foulFade.value),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Transform.scale(
+                      scale: _foulScale.value,
+                      child: Opacity(
+                        opacity: _foulFade.value,
+                        child: _FoulBallsWidget(
+                          playerName: game?.currentPlayer?.name ?? '',
+                          onFoulSelected: (points) => _closeFoulOverlay(points),
+                          onClose: () => _closeFoulOverlay(null),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-        ),
       ],
     );
   }
@@ -465,7 +677,6 @@ class _PlayerListItem extends StatelessWidget {
     required this.onSetColor,
   });
 
-  @override
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -1122,52 +1333,261 @@ class _BallButtonState extends State<_BallButton> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Subtract Mode Toggle
+// Foul Trigger Button
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SubtractToggle extends ConsumerWidget {
+class _FoulTriggerButton extends StatelessWidget {
   final Game game;
-  const _SubtractToggle({required this.game});
+  final VoidCallback onTap;
+  const _FoulTriggerButton({required this.game, required this.onTap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = AppColors.of(context);
-    final on = game.isSubtractMode;
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => ref.read(gameProvider.notifier).toggleSubtractMode(),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      onTap: onTap,
+      child: Container(
         height: 48,
         decoration: BoxDecoration(
-          gradient: on ? AppColors.subtractGradient : null,
-          color: on ? null : colors.bgCard,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+          ),
           borderRadius: BorderRadius.circular(12),
-          border: on
-              ? Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.6), width: 1.5)
-              : Border.all(color: colors.border, width: 1.5),
-          boxShadow: on
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : [],
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.remove_circle_outline,
-                color: on ? Colors.white : colors.textSecondary,
-                size: 20),
+            const Icon(Icons.gavel, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
               'Subtract Mode',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: on ? Colors.white : colors.textSecondary,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Foul Balls Overlay Widget
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FoulBallsWidget extends StatelessWidget {
+  final String playerName;
+  final ValueChanged<int> onFoulSelected;
+  final VoidCallback onClose;
+
+  const _FoulBallsWidget({
+    required this.playerName,
+    required this.onFoulSelected,
+    required this.onClose,
+  });
+
+  static const _foulData = [
+    (points: 4, color: AppColors.ballFoul4, label: 'Brown'),
+    (points: 5, color: AppColors.ballFoul5, label: 'Blue'),
+    (points: 6, color: AppColors.ballFoul6, label: 'Pink'),
+    (points: 7, color: AppColors.ballFoul7, label: 'Black'),
+    (points: 8, color: AppColors.ballFoul8, label: 'Red'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Close button
+          Align(
+            alignment: Alignment.topRight,
+            child: GestureDetector(
+              onTap: onClose,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.15),
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Title
+          Text(
+            'Foul on $playerName',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontFamily: 'Syne',
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Select foul points',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 28),
+          // Row 1: 4, 5
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildFoulBall(_foulData[0]),
+              const SizedBox(width: 24),
+              _buildFoulBall(_foulData[1]),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Row 2: 6, 7, 8
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildFoulBall(_foulData[2]),
+              const SizedBox(width: 24),
+              _buildFoulBall(_foulData[3]),
+              const SizedBox(width: 24),
+              _buildFoulBall(_foulData[4]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFoulBall(({int points, Color color, String label}) data) {
+    return _FoulBall(
+      points: data.points,
+      color: data.color,
+      label: data.label,
+      onTap: () => onFoulSelected(data.points),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single Foul Ball (3D sphere)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FoulBall extends StatefulWidget {
+  final int points;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  const _FoulBall({
+    required this.points,
+    required this.color,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_FoulBall> createState() => _FoulBallState();
+}
+
+class _FoulBallState extends State<_FoulBall> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    const ballSize = 80.0;
+    final highlightSize = ballSize * 0.21;
+    final isDark = widget.color.computeLuminance() < 0.3;
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.88),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: widget.color.withValues(alpha: 0.6),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.color.withValues(alpha: 0.5),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: ballSize,
+                height: ballSize,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: ballSize,
+                      height: ballSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: widget.color,
+                      ),
+                    ),
+                    Positioned(
+                      top: ballSize * 0.15,
+                      left: ballSize * 0.18,
+                      child: Container(
+                        width: highlightSize,
+                        height: highlightSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        '${widget.points}',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: widget.color.computeLuminance() < 0.5
+                    ? Colors.white70
+                    : Colors.white70,
               ),
             ),
           ],
@@ -1890,6 +2310,35 @@ class _GameOverBanner extends ConsumerWidget {
                         color: colors.accent),
                   ),
                 ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+          // ── Price Message ──
+          Builder(builder: (_) {
+            final totalPrice = (game.players.length - 1) * AppConstants.pricePerPlayer;
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                'Ab Mame ko $totalPrice Rs Do Shabash',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             );
           }),

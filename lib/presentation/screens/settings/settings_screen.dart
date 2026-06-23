@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -126,7 +125,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => _showAboutAppDialog(context),
                 ),
                 const _Divider(),
-                if (Platform.isAndroid)
+                if (defaultTargetPlatform == TargetPlatform.android)
                   _SettingsRow(
                     icon: Icons.share,
                     title: 'Share App (APK)',
@@ -135,7 +134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         color: colors.textSecondary, size: 20),
                     onTap: _shareApk,
                   ),
-                if (Platform.isAndroid) const _Divider(),
+                if (defaultTargetPlatform == TargetPlatform.android) const _Divider(),
                 _SettingsRow(
                   icon: Icons.verified,
                   title: 'App Version',

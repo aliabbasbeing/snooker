@@ -21,11 +21,19 @@ class HistoryNotifier extends StateNotifier<List<HistoryAction>> {
   /// Re-read the full history from Hive. Called by GameNotifier after every
   /// _addHistoryAction() so the screen updates in the same microtask.
   void reload() {
-    state = _repository.getAllHistory();
+    try {
+      state = _repository.getAllHistory();
+    } catch (e) {
+      state = [];
+    }
   }
 
   Future<void> clearHistory() async {
-    await _repository.clearHistory();
-    state = [];
+    try {
+      await _repository.clearHistory();
+      state = [];
+    } catch (e) {
+      // Silently fail
+    }
   }
 }

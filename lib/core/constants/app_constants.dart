@@ -21,8 +21,18 @@ class AppConstants {
   static const int maxPlayers = 12;
   static const int minPlayers = 1;
   
+  // Game Price
+  static const int pricePerPlayer = 40;
+  
   // Warning Threshold
   static const double warningThreshold = 0.20; // 20% of target
+  
+  // Foul Points
+  static const int foul4Points = 4;
+  static const int foul5Points = 5;
+  static const int foul6Points = 6;
+  static const int foul7Points = 7;
+  static const int foul8Points = 8;
   
   // Storage Keys
   static const String storageBoxName = 'snooker_data';

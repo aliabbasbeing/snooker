@@ -17,17 +17,25 @@ class PlayerStatisticsNotifier extends StateNotifier<List<PlayerStatistics>> {
   }
 
   void reload() {
-    state = _repository.getAllPlayerStatistics();
+    try {
+      state = _repository.getAllPlayerStatistics();
+    } catch (e) {
+      state = [];
+    }
   }
 
   Future<void> recordMatchResult({
     required List<String> playerNames,
     required String loserName,
   }) async {
-    await _repository.recordMatchResult(
-      playerNames: playerNames,
-      loserName: loserName,
-    );
-    reload();
+    try {
+      await _repository.recordMatchResult(
+        playerNames: playerNames,
+        loserName: loserName,
+      );
+      reload();
+    } catch (e) {
+      // Silently fail — statistics are non-critical
+    }
   }
 }

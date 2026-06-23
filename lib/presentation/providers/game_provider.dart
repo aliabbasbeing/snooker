@@ -39,7 +39,7 @@ final gameProvider = StateNotifierProvider<GameNotifier, Game?>((ref) {
         ref.read(playerStatisticsProvider.notifier).recordMatchResult(
               playerNames: game.players.map((p) => p.name).toList(),
               loserName: loser.name,
-            ),
+            ).catchError((_) {}), // Statistics are non-critical
       );
       ref.read(gameCompletionEventProvider.notifier).state =
           GameCompletionEvent(gameId: game.id, loserName: loser.name);
@@ -288,6 +288,71 @@ class GameNotifier extends StateNotifier<Game?> {
 
     // Auto-switch to next player if completed
     if (!finalised && isCompleted) {
+      await nextPlayer();
+    }
+  }
+
+  /// Score a foul — subtracts [points] from current player and auto-advances.
+  Future<void> scoreFoul(int points) async {
+    if (state == null || state!.currentPlayerId == null) return;
+
+    final currentGame = state!;
+    final currentPlayer = currentGame.currentPlayer!;
+
+    if (currentGame.completedAt != null) return;
+    if (currentPlayer.isCompleted) {
+      await nextPlayer();
+      return;
+    }
+
+    final previousScore = currentPlayer.score;
+    final newScore = (previousScore - points).clamp(-100, double.infinity).toInt();
+    final effective = currentPlayer.effectiveTarget(currentGame.targetScore);
+    final isCompleted = newScore >= effective;
+
+    _undoStack.add(currentGame);
+    if (_undoStack.length > 20) _undoStack.removeAt(0);
+
+    final updatedPlayer = currentPlayer.copyWith(
+      score: newScore,
+      isCompleted: isCompleted,
+      turnCount: currentPlayer.turnCount + 1,
+    );
+
+    final updatedPlayers = currentGame.players.map((p) {
+      return p.id == currentPlayer.id ? updatedPlayer : p;
+    }).toList();
+
+    final updatedGame = currentGame.copyWith(players: updatedPlayers);
+
+    await _repository.saveGame(updatedGame);
+
+    await _addHistoryAction(
+      gameId: currentGame.id,
+      actionType: ActionType.subtract,
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      pointsChanged: points,
+      ballColor: 'foul_$points',
+      details: '$previousScore → $newScore (foul -$points)',
+      previousBalance: previousScore,
+      updatedBalance: newScore,
+    );
+
+    if (isCompleted) {
+      await _addHistoryAction(
+        gameId: currentGame.id,
+        actionType: ActionType.playerCompleted,
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        details: 'Reached target of $effective',
+      );
+    }
+
+    state = updatedGame;
+    final finalised = await _finalizeGameIfNeeded(updatedGame);
+
+    if (!finalised) {
       await nextPlayer();
     }
   }

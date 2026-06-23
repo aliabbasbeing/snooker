@@ -57,6 +57,14 @@ class AppColors {
   static const Color ballBlack = Color(0xFF1F2937);
   static const Color ballRed = Color(0xFFEF4444);
 
+  // ── Foul ball colours ──────────────────────────────────────────────────────
+
+  static const Color ballFoul4 = Color(0xFF92400E); // brown
+  static const Color ballFoul5 = Color(0xFF3B82F6); // blue
+  static const Color ballFoul6 = Color(0xFFFF69B4); // pink
+  static const Color ballFoul7 = Color(0xFF1F2937); // black
+  static const Color ballFoul8 = Color(0xFFFF6B35); // red-orange
+
   // ── Player avatar colours ──────────────────────────────────────────────────
 
   static const List<Color> playerColors = [
